@@ -1,0 +1,57 @@
+agent:
+  module: omnirl.algorithms.sppo
+modules:
+  learner:
+    tau: 0.005
+    gamma: 0.999
+    lambda_: 0.95
+    ent_coef: 0.02
+    vf_coef: 0.5
+    spr_coef: 2.0
+    spr_horizon: 5
+    k_epochs: 3
+    num_minibatches: 8
+    epsilon_clip: 0.2
+    lr: 0.0003
+    max_grad_norm: 0.5
+    random_shift_padding: 4
+    drac_coef: 0.1
+    reward_clip: 10.0
+  memory:
+    unroll_length: 256
+    max_chunks: 256
+    store_log_probs: true
+    track_version: true
+  network:
+    latent_dim: 256
+    width_scale: 4
+    action_embed_dim: 32
+    projection_dim: 256
+env:
+  module: omnirl.envs.procgen
+  id: procgen:procgen-miner-v0
+  train_start_level: 0
+  train_num_levels: 500
+  test_start_level: 1000
+  test_num_levels: 100
+  evaluation_num_evaluators: 10
+  distribution_mode: hard
+  render_mode: null
+  num_stack: 1
+runner:
+  ckpt_dir: results/miner/sppo-1
+  eval_model: null
+  num_learners: 4
+  num_samplers: 100
+  num_evaluators: 10
+  max_updates: 3052
+  save_interval: 3600
+  log_interval: 60
+  log_name: log.csv
+  load_checkpoint: true
+device:
+  learner: gpu
+seed:
+  learner: 1
+  sampler: 1
+  evaluator: 1

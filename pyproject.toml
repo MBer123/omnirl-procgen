@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omnirl-procgen"
+version = "0.1.0"
+description = "A controlled evaluation of SPPO on Procgen."
+readme = "README.md"
+authors = [
+    {name = "Huang Chenbiao", email = "a1057951125@gmail.com"},
+]
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.10,<3.11"
+keywords = [
+    "reinforcement-learning",
+    "distributed-computing",
+    "procgen",
+    "ppo",
+    "representation-learning",
+    "ray",
+    "pytorch",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dynamic = ["dependencies"]
+
+[project.urls]
+Homepage = "https://github.com/MBer123/omnirl-procgen"
+Repository = "https://github.com/MBer123/omnirl-procgen"
+Issues = "https://github.com/MBer123/omnirl-procgen/issues"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements/base.txt"]}
+
+[tool.setuptools.packages.find]
+include = ["omnirl*"]

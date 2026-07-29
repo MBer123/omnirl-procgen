@@ -1,0 +1,18 @@
+env:
+  module: omnirl.envs.procgen
+  id: procgen:procgen-chaser-v0
+  train_start_level: 0
+  test_start_level: 1000
+  test_num_levels: 100
+  evaluation_num_evaluators: 10
+  distribution_mode: hard
+  render_mode: null
+  num_stack: 1
+
+runner:
+  ckpt_dir: results/chaser/ppo-2
+  eval_model: agent_3052.pth
+  num_evaluators: 10
+
+seed:
+  evaluator: 2

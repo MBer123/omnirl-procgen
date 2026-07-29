@@ -1,0 +1,24 @@
+agent:
+  module: omnirl.algorithms.ppo
+
+modules:
+  learner:
+    gamma: 0.999
+    lambda_: 0.95
+    ent_coef: 0.02
+    vf_coef: 0.5
+    k_epochs: 3
+    num_minibatches: 8
+    epsilon_clip: 0.2
+    lr: 0.0003
+    max_grad_norm: 0.5
+
+  memory:
+    unroll_length: 256
+    max_chunks: 256
+    store_log_probs: true
+    track_version: true
+
+  network:
+    latent_dim: 256
+    width_scale: 4
