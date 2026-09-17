@@ -1,0 +1,32 @@
+agent:
+  module: omnirl.algorithms.sppo
+
+modules:
+  learner:
+    tau: 0.005
+    gamma: 0.999
+    lambda_: 0.95
+    ent_coef: 0.02
+    vf_coef: 0.5
+    spr_coef: 2.0
+    spr_horizon: 5
+    k_epochs: 3
+    num_minibatches: 8
+    epsilon_clip: 0.2
+    lr: 0.0003
+    max_grad_norm: 0.5
+    random_shift_padding: 4
+    drac_coef: 0.1
+    reward_clip: 10.0
+
+  memory:
+    unroll_length: 256
+    max_chunks: 256
+    store_log_probs: true
+    track_version: true
+
+  network:
+    latent_dim: 256
+    width_scale: 4
+    action_embed_dim: 32
+    projection_dim: 256

@@ -1,0 +1,31 @@
+env:
+  module: omnirl.envs.procgen
+  id: procgen:procgen-ninja-v0
+  train_start_level: 0
+  train_num_levels: 500
+  test_start_level: 1000
+  test_num_levels: 100
+  evaluation_num_evaluators: 10
+  distribution_mode: hard
+  render_mode: null
+  num_stack: 1
+
+runner:
+  ckpt_dir: results/ninja/sppo-0
+  eval_model: null
+  num_learners: 4
+  num_samplers: 100
+  num_evaluators: 10
+  max_updates: 3052
+  save_interval: 3600
+  log_interval: 60
+  log_name: log.csv
+  load_checkpoint: true
+
+device:
+  learner: gpu
+
+seed:
+  learner: 0
+  sampler: 0
+  evaluator: 0
