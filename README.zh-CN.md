@@ -100,9 +100,16 @@ Procgen Benchmark 由一组程序生成游戏环境组成，主要用于评估�
 | `caveflyer` | 驾驶飞行器穿过洞穴，在避开墙壁、障碍物和敌人的同时抵达出口。 |
 | `chaser` | 在类似 Pac-Man 的迷宫中收集目标，并应对追逐角色的敌人。 |
 | `climber` | 在平台之间向上攀爬并收集奖励。 |
+| `coinrun` | 跳跃穿越平台，躲避锯齿、敌人和深坑，取得关卡最右侧的金币。 |
 | `dodgeball` | 在房间内躲避敌人和投射物，并击败敌人完成 Level。 |
+| `fruitbot` | 控制机器人穿过墙壁间隙，收集水果并避开非水果物品。 |
 | `heist` | 探索迷宫，收集钥匙，打开对应的锁并取得宝石。 |
+| `jumper` | 控制兔子使用二段跳穿越平台，避开尖刺并找到胡萝卜。 |
+| `leaper` | 躲避车辆穿过道路，再跳上漂浮的木头渡河，抵达终点。 |
+| `maze` | 控制老鼠探索迷宫，找到奶酪。 |
 | `miner` | 挖掘地图、收集钻石，同时避开落石等危险。 |
+| `ninja` | 使用蓄力跳跃和飞镖穿越平台、清除炸弹，取得终点的蘑菇。 |
+| `plunder` | 发射炮弹击沉敌方海盗船，避开友方船只，并合理利用时间和弹药。 |
 | `starpilot` | 在横向卷轴射击场景中躲避敌人与子弹，并摧毁目标。 |
 
 游戏规则、环境选项和原始实现详见 [openai/procgen](https://github.com/openai/procgen)。
@@ -193,18 +200,18 @@ Procgen 环境模块会分别评估配置中的训练与测试 Level，并给出
 
 ## 实验
 
-实验使用 PPO 和 SPPO，在九个 Procgen 环境上进行对比：
+实验使用 PPO 和 SPPO，在全部 16 个 Procgen 环境上进行对比：
 
 | 设置 | 值 |
 | --- | --- |
 | 算法 | PPO、SPPO |
-| 环境 | BigFish、BossFight、CaveFlyer、Chaser、Climber、DodgeBall、Heist、Miner、StarPilot |
+| 环境 | BigFish、BossFight、CaveFlyer、Chaser、Climber、CoinRun、DodgeBall、FruitBot、Heist、Jumper、Leaper、Maze、Miner、Ninja、Plunder、StarPilot |
 | 随机种子 | 0、1、2 |
 | Distribution mode | `hard` |
 | 训练 Level | 500 |
 | 留出测试 Level | 100 |
 | 每次运行的参数更新次数 | 3,052 |
-| 总运行次数 | 54 |
+| 总运行次数 | 96 |
 
 配置位于 `experiments/<environment>/<algorithm>-<seed>`，检查点、日志和合并后的运行配置将写入 `results/<environment>/<algorithm>-<seed>`。
 
@@ -233,6 +240,8 @@ Procgen 环境模块会分别评估配置中的训练与测试 Level，并给出
 </p>
 
 <p align="center"><em>Heist（左）、Miner（中）和 StarPilot（右）。</em></p>
+
+其他环境的实验结果可以参考 [docs](docs/images)。
 
 ## 注意事项
 

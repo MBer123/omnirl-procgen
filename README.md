@@ -100,9 +100,16 @@ The experiments use the `hard` distribution mode. Training and test level ranges
 | `caveflyer` | Fly through a cave to reach the exit while avoiding walls, obstacles, and enemies. |
 | `chaser` | A Pac-Man-like maze environment where the agent collects targets and handles chasing enemies. |
 | `climber` | A platforming environment where the agent climbs upward and collects rewards. |
+| `coinrun` | Reach the coin on the far right by jumping across platforms and avoiding saws, enemies, and gaps. |
 | `dodgeball` | Dodge enemies and projectiles in a room, and defeat enemies to finish the level. |
+| `fruitbot` | Guide a robot through wall gaps, collect fruit, and avoid non-fruit objects. |
 | `heist` | Navigate a maze, collect keys, open matching locks, and obtain the gem. |
+| `jumper` | Use a bunny's double jump to reach the carrot while avoiding spikes. |
+| `leaper` | Cross roads and a river by dodging cars and hopping between logs. |
+| `maze` | Navigate a mouse through a maze to find the cheese. |
 | `miner` | Dig through the map, collect diamonds, and avoid hazards such as falling rocks. |
+| `ninja` | Use charged jumps and throwing stars to clear bombs and reach the mushroom. |
+| `plunder` | Fire cannonballs at enemy pirate ships, spare friendly ships, and manage the time limit. |
 | `starpilot` | A side-scrolling shooter where the agent dodges enemies and bullets while destroying targets. |
 
 For detailed game rules, environment options, and the original implementation, refer to [openai/procgen](https://github.com/openai/procgen).
@@ -193,18 +200,18 @@ To watch the agent, set `env.render_mode` to `human` and `runner.num_evaluators`
 
 ## Experiments
 
-The experiments compare PPO and SPPO across nine Procgen environments:
+The experiments compare PPO and SPPO across all 16 Procgen environments:
 
 | Setting | Value |
 | --- | --- |
 | Algorithms | PPO, SPPO |
-| Environments | BigFish, BossFight, CaveFlyer, Chaser, Climber, DodgeBall, Heist, Miner, StarPilot |
+| Environments | BigFish, BossFight, CaveFlyer, Chaser, Climber, CoinRun, DodgeBall, FruitBot, Heist, Jumper, Leaper, Maze, Miner, Ninja, Plunder, StarPilot |
 | Seeds | 0, 1, 2 |
 | Distribution mode | `hard` |
 | Training levels | 500 |
 | Held-out test levels | 100 |
 | Updates per run | 3,052 |
-| Total runs | 54 |
+| Total runs | 96 |
 
 Configurations are stored under `experiments/<environment>/<algorithm>-<seed>`, and checkpoints, logs, and merged run configurations are written under `results/<environment>/<algorithm>-<seed>`.
 
@@ -233,6 +240,8 @@ The solid lines show the three-seed mean training score, and the shaded regions 
 </p>
 
 <p align="center"><em>Heist (left), Miner (center), and StarPilot (right).</em></p>
+
+Results for the other environments are available in [docs](docs/images).
 
 ## Notes
 
