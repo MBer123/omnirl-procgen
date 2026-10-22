@@ -1,5 +1,5 @@
 agent:
-  module: omnirl.algorithms.sppo
+  module: framework.algorithms.sppo
 
 modules:
   learner:

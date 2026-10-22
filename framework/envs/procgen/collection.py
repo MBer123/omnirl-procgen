@@ -14,7 +14,7 @@ class CollectionLoop:
         self.env = env_builder()
         self.observation, _ = self.env.reset(seed=seed)
 
-    def collect(self, sample_action, num_steps):
+    def collect(self, policy, num_steps):
         """Collect a fixed-length rollout and preserve opaque policy data."""
         states = []
         rewards = []
@@ -24,7 +24,7 @@ class CollectionLoop:
         policy_data = {}
 
         for _ in range(num_steps):
-            decision = sample_action(self.observation)
+            decision = policy.sample_action(self.observation)
             action = decision["env_action"]
             next_observation, reward, terminated, truncated, _ = self.env.step(action)
             done = terminated or truncated

@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from omnirl.networks import SPPOCNN
+from framework.networks import SPPOCNN
 
 
 class SPPOSmokeTest(unittest.TestCase):

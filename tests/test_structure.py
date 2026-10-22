@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import yaml
 
-from omnirl.networks import ImpalaCNN, SPPOCNN
+from framework.networks import ImpalaCNN, SPPOCNN
 from omnirl.runtime.runner import Runner
 
 
@@ -14,8 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPERIMENTS = ROOT / "experiments"
 ALGORITHMS = ["ppo", "sppo"]
 NETWORKS = {
-    "omnirl.algorithms.ppo": ImpalaCNN,
-    "omnirl.algorithms.sppo": SPPOCNN,
+    "framework.algorithms.ppo": ImpalaCNN,
+    "framework.algorithms.sppo": SPPOCNN,
 }
 
 
@@ -28,7 +28,7 @@ class StructureTest(unittest.TestCase):
     def test_algorithm_exports(self):
         for name in ALGORITHMS:
             with self.subTest(algorithm=name):
-                module = importlib.import_module(f"omnirl.algorithms.{name}")
+                module = importlib.import_module(f"framework.algorithms.{name}")
                 for component in ["Learner", "Memory", "Policy"]:
                     self.assertTrue(hasattr(module, component))
 
@@ -51,7 +51,7 @@ class StructureTest(unittest.TestCase):
                     self.assertTrue(callable(getattr(module.Policy, method)))
 
     def test_environment_backend_exports(self):
-        environment = importlib.import_module("omnirl.envs.procgen")
+        environment = importlib.import_module("framework.envs.procgen")
         for component in [
             "CollectionLoop",
             "EvaluationLoop",
@@ -167,7 +167,7 @@ class StructureTest(unittest.TestCase):
     def test_environment_arguments_are_forwarded_opaquely(self):
         runner_config = {
             "env": {
-                "module": "omnirl.envs.example",
+                "module": "framework.envs.example",
                 "game": "example",
                 "custom_option": 42,
             }

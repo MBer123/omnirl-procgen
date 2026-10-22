@@ -14,8 +14,8 @@ class EvaluationLoop:
         self.env = env_builder()
         self.seed = seed
 
-    def run(self, choose_action, num_episodes):
-        """Evaluate an action callback for a fixed number of episodes."""
+    def run(self, policy, num_episodes):
+        """Evaluate a policy for the configured training and test levels."""
         plan = self.env.configure(self.seed, num_episodes)
         evaluations = []
         for assignment in plan["assignments"]:
@@ -32,7 +32,7 @@ class EvaluationLoop:
                     if self.env.render_mode == "human":
                         self.env.render()
 
-                    action = choose_action(observation)
+                    action = policy.choose_action(observation)
                     observation, reward, terminated, truncated, _ = self.env.step(
                         action
                     )

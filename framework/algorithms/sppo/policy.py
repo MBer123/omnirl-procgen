@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from torch.distributions import Categorical
 
-from omnirl.networks import SPPOCNN
+from framework.networks import SPPOCNN
 
 
 class Policy:

@@ -138,11 +138,8 @@ Install OmniRL-Procgen and the Procgen environment backend:
 
 ```bash
 python -m pip install --upgrade pip
-pip install -e .
-pip install -r requirements/procgen.txt
+pip install -r requirements.txt
 ```
-
-The backend requirements file includes `base.txt` and can be installed directly in a fresh environment.
 
 For GPU training, install the PyTorch build that matches the operating system and CUDA runtime, then verify CUDA availability:
 

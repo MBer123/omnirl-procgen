@@ -1,5 +1,5 @@
 env:
-  module: omnirl.envs.procgen
+  module: framework.envs.procgen
   id: procgen:procgen-starpilot-v0
   train_start_level: 0
   test_start_level: 1000

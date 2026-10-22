@@ -1,5 +1,5 @@
 env:
-  module: omnirl.envs.procgen
+  module: framework.envs.procgen
   id: procgen:procgen-miner-v0
   train_start_level: 0
   train_num_levels: 500

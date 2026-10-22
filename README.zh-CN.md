@@ -138,11 +138,8 @@ source .venv/bin/activate
 
 ```bash
 python -m pip install --upgrade pip
-pip install -e .
-pip install -r requirements/procgen.txt
+pip install -r requirements.txt
 ```
-
-Procgen 的依赖文件会引入 `base.txt`，因此可以在全新环境中直接安装。
 
 如需使用 GPU 训练，请安装与操作系统和 CUDA 运行时相匹配的 PyTorch 版本，然后确认 CUDA 是否可用：
 

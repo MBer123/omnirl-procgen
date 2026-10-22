@@ -1,0 +1,2 @@
+omnirl-framework==0.1.2
+procgen==0.10.7

@@ -10,7 +10,7 @@ import torch.optim as optim
 from torch.distributions import Categorical, kl_divergence
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from omnirl.networks import SPPOCNN
+from framework.networks import SPPOCNN
 from omnirl.utils.seed import set_global_seed
 
 
