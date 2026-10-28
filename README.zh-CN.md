@@ -8,20 +8,18 @@ OmniRL-Procgen 用于在统一实验设置下比较 PPO 与 SPPO 在程序生成
 
 ## 方法
 
-SPPO 是一套面向视觉 On-policy 强化学习的 PPO 改进方案。它将表征学习、归一化和面向数据增强的优化方法适配到 PPO，并针对 actor 与 critic 采用不同的处理方式。
+SPPO 是一套面向视觉 On-policy 强化学习的 PPO 改进方案。它在共享 IMPALA-CNN backbone 的基础上，将 PPO 与 random-shift 数据增强、policy 一致性正则化和 value target 归一化结合。
 
 | 组成部分 | 在 SPPO 中的作用 |
 | --- | --- |
 | [PPO](https://arxiv.org/abs/1707.06347) | 提供 clipped surrogate objective 和基础 Actor-Critic 更新。 |
-| [SPR](https://arxiv.org/abs/2007.05929) | 使用 action-conditioned transition model 和 EMA target network，预测未来多步 latent representation。 |
-| [RMSNorm](https://proceedings.neurips.cc/paper/2019/hash/1e8a19426224ca89e83cef47f1e7f53b-Abstract.html) | 改进 [IMPALA-CNN](https://proceedings.mlr.press/v80/espeholt18a.html) backbone，在 latent projection 前对展平后的卷积特征进行归一化。 |
-| Separate Heads | actor 和 critic 使用独立 head：actor 采用 [LayerNorm](https://arxiv.org/abs/1607.06450)，critic 采用 RMSNorm。 |
+| [IMPALA-CNN](https://proceedings.mlr.press/v80/espeholt18a.html) | actor 和 critic 的线性 head 共享卷积编码器和 latent projection。 |
 | [SADA](https://rlj.cs.umass.edu/2024/papers/Paper26.html)-actor | 借鉴 SADA 的思想，分别使用原始观测和 random-shift 观测计算 PPO actor loss，再对两者取平均。 |
 | [DrAC](https://proceedings.neurips.cc/paper_files/paper/2021/hash/2b38c2df6a49b97f706ec9148ce48d86-Abstract.html)-actor | 使用 KL divergence 约束增强后的 policy 与原始 policy 保持一致。 |
 | [SVEA](https://proceedings.neurips.cc/paper/2021/hash/1e0f65eb20acbfb27ee05ddc000b50ec-Abstract.html)-critic | 借鉴 SVEA 的思想，让原始观测与增强观测预测的 value 回归到同一个 return target。 |
-| RewardNorm | 使用 discounted return 的运行标准差缩放 reward，在多个 Learner 间同步统计量，并裁剪归一化后的 reward。 |
+| ValueNorm | 使用运行均值和方差归一化 return target，在多个 Learner 间同步统计量，并在计算 GAE 时将 critic 预测还原到原始 reward 尺度。 |
 
-记 $g$ 为 random-shift augmentation，$`\hat{R}`$ 为使用归一化 reward 计算的 return target，$`\mathrm{sg}`$ 表示 stop-gradient。PPO clipped surrogate loss 定义为
+记 $g$ 为 random-shift augmentation，$`\hat{R}`$ 为经 ValueNorm 归一化的 return target，$V$ 为归一化尺度上的 critic 预测，$`\mathrm{sg}`$ 表示 stop-gradient。GAE 使用反归一化后的 critic 预测，在原始 reward 尺度上计算。PPO clipped surrogate loss 定义为
 
 ```math
 \begin{aligned}
@@ -81,11 +79,10 @@ D_{\mathrm{KL}}
 \mathcal{L}_{\mathrm{actor}}
 + c_v\mathcal{L}_{\mathrm{critic}}
 - c_H\mathcal{H}(\pi)
-+ c_{\mathrm{SPR}}\mathcal{L}_{\mathrm{SPR}}
 + c_{\mathrm{DrAC}}\mathcal{L}_{\mathrm{DrAC}},
 ```
 
-其中，各项 loss 的系数和 SPR prediction horizon 均由 Agent YAML 配置。
+其中，各项 loss 的系数和网络维度均由 Agent YAML 配置。
 
 ## 环境
 
@@ -216,27 +213,27 @@ Procgen 环境模块会分别评估配置中的训练与测试 Level，并给出
 
 <p align="center">
   <img src="docs/images/bigfish.png" alt="PPO 与 SPPO 在 BigFish 上的实验结果" width="32%">
-  <img src="docs/images/bossfight.png" alt="PPO 与 SPPO 在 BossFight 上的实验结果" width="32%">
   <img src="docs/images/caveflyer.png" alt="PPO 与 SPPO 在 CaveFlyer 上的实验结果" width="32%">
-</p>
-
-<p align="center"><em>BigFish（左）、BossFight（中）和 CaveFlyer（右）。</em></p>
-
-<p align="center">
   <img src="docs/images/chaser.png" alt="PPO 与 SPPO 在 Chaser 上的实验结果" width="32%">
-  <img src="docs/images/climber.png" alt="PPO 与 SPPO 在 Climber 上的实验结果" width="32%">
-  <img src="docs/images/dodgeball.png" alt="PPO 与 SPPO 在 DodgeBall 上的实验结果" width="32%">
 </p>
 
-<p align="center"><em>Chaser（左）、Climber（中）和 DodgeBall（右）。</em></p>
+<p align="center"><em>BigFish（左）、CaveFlyer（中）和 Chaser（右）。</em></p>
 
 <p align="center">
-  <img src="docs/images/heist.png" alt="PPO 与 SPPO 在 Heist 上的实验结果" width="32%">
+  <img src="docs/images/dodgeball.png" alt="PPO 与 SPPO 在 DodgeBall 上的实验结果" width="32%">
+  <img src="docs/images/leaper.png" alt="PPO 与 SPPO 在 Leaper 上的实验结果" width="32%">
   <img src="docs/images/miner.png" alt="PPO 与 SPPO 在 Miner 上的实验结果" width="32%">
+</p>
+
+<p align="center"><em>DodgeBall（左）、Leaper（中）和 Miner（右）。</em></p>
+
+<p align="center">
+  <img src="docs/images/ninja.png" alt="PPO 与 SPPO 在 Ninja 上的实验结果" width="32%">
+  <img src="docs/images/plunder.png" alt="PPO 与 SPPO 在 Plunder 上的实验结果" width="32%">
   <img src="docs/images/starpilot.png" alt="PPO 与 SPPO 在 StarPilot 上的实验结果" width="32%">
 </p>
 
-<p align="center"><em>Heist（左）、Miner（中）和 StarPilot（右）。</em></p>
+<p align="center"><em>Ninja（左）、Plunder（中）和 StarPilot（右）。</em></p>
 
 其他环境的实验结果可以参考 [docs](docs/images)。
 

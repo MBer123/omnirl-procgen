@@ -8,20 +8,18 @@ OmniRL-Procgen is a controlled comparison of PPO and SPPO on procedurally genera
 
 ## Method
 
-SPPO is a PPO-based recipe for visual on-policy reinforcement learning. It adapts representation learning, normalization, and augmentation-aware optimization techniques to PPO, with separate treatment of the actor and critic.
+SPPO is a PPO-based recipe for visual on-policy reinforcement learning. It combines random-shift augmentation, policy consistency regularization, and value-target normalization with a shared IMPALA-CNN backbone.
 
 | Component | Role in SPPO |
 | --- | --- |
 | [PPO](https://arxiv.org/abs/1707.06347) | Provides the clipped surrogate objective and the base actor-critic update. |
-| [SPR](https://arxiv.org/abs/2007.05929) | Predicts multi-step future latent representations with an action-conditioned transition model and an EMA target network. |
-| [RMSNorm](https://proceedings.neurips.cc/paper/2019/hash/1e8a19426224ca89e83cef47f1e7f53b-Abstract.html) | Improves the [IMPALA-CNN](https://proceedings.mlr.press/v80/espeholt18a.html) backbone by normalizing flattened convolutional features before the latent projection. |
-| Separate Heads | Uses separate actor and critic heads: [LayerNorm](https://arxiv.org/abs/1607.06450) for the actor and RMSNorm for the critic. |
+| [IMPALA-CNN](https://proceedings.mlr.press/v80/espeholt18a.html) | Shares a convolutional encoder and latent projection between linear actor and critic heads. |
 | [SADA](https://rlj.cs.umass.edu/2024/papers/Paper26.html)-actor | Adapts the SADA idea by averaging PPO actor losses computed from the original and random-shift observations. |
 | [DrAC](https://proceedings.neurips.cc/paper_files/paper/2021/hash/2b38c2df6a49b97f706ec9148ce48d86-Abstract.html)-actor | Regularizes the augmented policy toward the original policy with KL divergence. |
 | [SVEA](https://proceedings.neurips.cc/paper/2021/hash/1e0f65eb20acbfb27ee05ddc000b50ec-Abstract.html)-critic | Adapts the SVEA idea by regressing values from original and augmented observations toward the same return target. |
-| RewardNorm | Scales rewards by the running standard deviation of discounted returns, synchronizes statistics across learners, and clips normalized rewards. |
+| ValueNorm | Normalizes return targets with running mean and variance, synchronizes statistics across learners, and denormalizes critic predictions when computing GAE. |
 
-Let $g$ denote random-shift augmentation, $\hat{R}$ the return target computed from normalized rewards, and $\mathrm{sg}$ stop-gradient. The PPO clipped surrogate loss is
+Let $g$ denote random-shift augmentation, $\hat{R}$ the return target normalized by ValueNorm, $V$ the normalized critic prediction, and $\mathrm{sg}$ stop-gradient. GAE is computed in raw reward units using denormalized critic predictions. The PPO clipped surrogate loss is
 
 ```math
 \begin{aligned}
@@ -81,11 +79,10 @@ The complete optimization objective is
 \mathcal{L}_{\mathrm{actor}}
 + c_v\mathcal{L}_{\mathrm{critic}}
 - c_H\mathcal{H}(\pi)
-+ c_{\mathrm{SPR}}\mathcal{L}_{\mathrm{SPR}}
 + c_{\mathrm{DrAC}}\mathcal{L}_{\mathrm{DrAC}},
 ```
 
-where the loss coefficients and SPR prediction horizon are configured in the agent YAML.
+The loss coefficients and network dimensions are configured in the agent YAML.
 
 ## Environments
 
@@ -216,27 +213,27 @@ The solid lines show the three-seed mean training score, and the shaded regions 
 
 <p align="center">
   <img src="docs/images/bigfish.png" alt="PPO and SPPO on BigFish" width="32%">
-  <img src="docs/images/bossfight.png" alt="PPO and SPPO on BossFight" width="32%">
   <img src="docs/images/caveflyer.png" alt="PPO and SPPO on CaveFlyer" width="32%">
-</p>
-
-<p align="center"><em>BigFish (left), BossFight (center), and CaveFlyer (right).</em></p>
-
-<p align="center">
   <img src="docs/images/chaser.png" alt="PPO and SPPO on Chaser" width="32%">
-  <img src="docs/images/climber.png" alt="PPO and SPPO on Climber" width="32%">
-  <img src="docs/images/dodgeball.png" alt="PPO and SPPO on DodgeBall" width="32%">
 </p>
 
-<p align="center"><em>Chaser (left), Climber (center), and DodgeBall (right).</em></p>
+<p align="center"><em>BigFish (left), CaveFlyer (center), and Chaser (right).</em></p>
 
 <p align="center">
-  <img src="docs/images/heist.png" alt="PPO and SPPO on Heist" width="32%">
+  <img src="docs/images/dodgeball.png" alt="PPO and SPPO on DodgeBall" width="32%">
+  <img src="docs/images/leaper.png" alt="PPO and SPPO on Leaper" width="32%">
   <img src="docs/images/miner.png" alt="PPO and SPPO on Miner" width="32%">
+</p>
+
+<p align="center"><em>DodgeBall (left), Leaper (center), and Miner (right).</em></p>
+
+<p align="center">
+  <img src="docs/images/ninja.png" alt="PPO and SPPO on Ninja" width="32%">
+  <img src="docs/images/plunder.png" alt="PPO and SPPO on Plunder" width="32%">
   <img src="docs/images/starpilot.png" alt="PPO and SPPO on StarPilot" width="32%">
 </p>
 
-<p align="center"><em>Heist (left), Miner (center), and StarPilot (right).</em></p>
+<p align="center"><em>Ninja (left), Plunder (center), and StarPilot (right).</em></p>
 
 Results for the other environments are available in [docs](docs/images).
 

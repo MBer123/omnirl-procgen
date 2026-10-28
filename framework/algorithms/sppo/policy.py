@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from torch.distributions import Categorical
 
-from framework.networks import SPPOCNN
+from framework.networks import ImpalaCNN
 
 
 class Policy:
@@ -32,7 +32,7 @@ class Policy:
         self.version = -1
 
         network_kwargs = dict(network_kwargs or {})
-        model = SPPOCNN(
+        model = ImpalaCNN(
             state_dim=state_dim,
             action_dim=action_dim,
             **network_kwargs,

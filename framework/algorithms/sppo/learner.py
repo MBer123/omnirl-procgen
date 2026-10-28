@@ -1,4 +1,3 @@
-import copy
 import os
 
 import ray
@@ -10,13 +9,13 @@ import torch.optim as optim
 from torch.distributions import Categorical, kl_divergence
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from framework.networks import SPPOCNN
+from framework.networks import ImpalaCNN
 from omnirl.utils.seed import set_global_seed
 
 
-class RunningMeanStd:
+class ValueNormalizer:
     """
-    Running mean and variance tracker for scalar normalization statistics.
+    Running mean and variance tracker for unnormalized value targets.
 
     Args:
         epsilon: Initial sample count used to stabilize running statistics.
@@ -53,12 +52,20 @@ class RunningMeanStd:
         self.var = new_var
         self.count = total_count
 
+    def normalize(self, values):
+        """Map raw returns to the critic's target scale."""
+        return (values - self.mean) / torch.sqrt(self.var + 1e-8)
+
+    def denormalize(self, values):
+        """Map critic predictions back to the reward scale."""
+        return values * torch.sqrt(self.var + 1e-8) + self.mean
+
     def state_dict(self):
         """Return a CPU copy of normalization state."""
         return {
-            "mean": self.mean.detach().cpu(),
-            "var": self.var.detach().cpu(),
-            "count": self.count.detach().cpu(),
+            "mean": self.mean.detach().cpu().clone(),
+            "var": self.var.detach().cpu().clone(),
+            "count": self.count.detach().cpu().clone(),
         }
 
     def load_state_dict(self, state_dict):
@@ -77,7 +84,7 @@ class RunningMeanStd:
 @ray.remote
 class Learner:
     """
-    SPPO learner agent.
+    SPPO learner: PPO with actor and critic augmentation plus ValueNorm.
 
     Args:
         state_dim: Dimension of the environment state space.
@@ -85,13 +92,10 @@ class Learner:
         is_continuous: Whether the action space is continuous.
         network_kwargs: Keyword arguments used to build the network.
         ckpt_dir: Directory path to save model checkpoints.
-        tau: Soft update coefficient for target network.
         gamma: Discount factor.
         lambda_: GAE lambda used for generalized advantage estimation.
         ent_coef: Entropy regularization coefficient used to encourage exploration.
         vf_coef: Coefficient for the critic loss in the total optimization objective.
-        spr_coef: Coefficient for the SPR auxiliary loss.
-        spr_horizon: Number of future steps predicted by SPR.
         k_epochs: Number of optimization epochs performed for each rollout batch.
         num_minibatches: Number of minibatches per epoch.
         epsilon_clip: Clipping range used in the PPO surrogate objective.
@@ -99,7 +103,6 @@ class Learner:
         max_grad_norm: Maximum gradient norm used for gradient clipping.
         random_shift_padding: Edge padding used before shifting back to original size.
         drac_coef: Coefficient for policy KL regularization.
-        reward_clip: Optional absolute clipping value after reward normalization.
         device: Torch device to run the networks on.
         seed: Random seed used to ensure consistent results across runs.
         rank: Distributed learner rank.
@@ -115,13 +118,10 @@ class Learner:
         is_continuous: bool = False,
         network_kwargs: dict | None = None,
         ckpt_dir: str = "checkpoints",
-        tau: float = 0.005,
         gamma: float = 0.99,
         lambda_: float = 0.95,
         ent_coef: float = 0.02,
         vf_coef: float = 0.5,
-        spr_coef: float = 2.0,
-        spr_horizon: int = 5,
         k_epochs: int = 3,
         num_minibatches: int = 8,
         epsilon_clip: float = 0.1,
@@ -129,7 +129,6 @@ class Learner:
         max_grad_norm: float = 0.5,
         random_shift_padding: int = 4,
         drac_coef: float = 0.1,
-        reward_clip: float | None = 10.0,
         device: str | None = None,
         seed: int | None = None,
         rank: int = 0,
@@ -169,7 +168,6 @@ class Learner:
             )
 
         # Initialize parameters
-        self.tau = tau
         self.gamma = gamma
         self.lambda_ = lambda_
         self.epsilon_clip = epsilon_clip
@@ -177,28 +175,22 @@ class Learner:
         self.num_minibatches = num_minibatches
         self.ent_coef = ent_coef
         self.vf_coef = vf_coef
-        self.spr_coef = spr_coef
-        self.spr_horizon = spr_horizon
         self.max_grad_norm = max_grad_norm
         self.random_shift_padding = random_shift_padding
         self.drac_coef = drac_coef
-        self.reward_clip = reward_clip
-        self.reward_rms = RunningMeanStd(device=self.device)
+        self.value_norm = ValueNormalizer(device=self.device)
 
         # Initialize model network
         self.version = 0
         network_kwargs = dict(network_kwargs or {})
-        model = SPPOCNN(
+        model = ImpalaCNN(
             state_dim=state_dim,
             action_dim=action_dim,
             **network_kwargs,
         )
 
         self.model = model.to(self.device)
-        self.target_model = copy.deepcopy(self.model).to(self.device)
-
         self.model.train()
-        self.target_model.eval()
 
         if self.is_distributed:
             ddp_kwargs = {"device_ids": [0]} if self.device.type == "cuda" else {}
@@ -208,14 +200,6 @@ class Learner:
 
         # Initialize optimizer
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
-
-    def _update_network_parameters(self, source_net, target_net):
-        """Soft-update target network parameters from online network parameters."""
-        with torch.no_grad():
-            zip_params = zip(source_net.parameters(), target_net.parameters())
-            for source_params, target_params in zip_params:
-                params = self.tau * source_params + (1 - self.tau) * target_params
-                target_params.data.copy_(params)
 
     def _state_dict(self, model):
         """Return a detached CPU copy of model state_dict."""
@@ -229,22 +213,9 @@ class Learner:
         """Export the current learner model version."""
         return self.version
 
-    def _discounted_reward_returns(self, rewards_tensor, dones_tensor):
-        """Build discounted reward returns used to update reward normalization."""
-        B, T = rewards_tensor.shape
-        reward_returns = torch.zeros_like(rewards_tensor)
-        running_returns = torch.zeros(B, device=self.device)
-
-        for t in range(T):
-            running_returns = self.gamma * running_returns + rewards_tensor[:, t]
-            reward_returns[:, t] = running_returns
-            running_returns = running_returns * (1.0 - dones_tensor[:, t])
-
-        return reward_returns
-
-    def _update_reward_rms(self, reward_returns):
-        """Update reward normalization stats, synchronized across learners."""
-        flat_returns = reward_returns.reshape(-1).detach().float()
+    def _update_value_norm(self, returns):
+        """Update return statistics and synchronize them across learners."""
+        flat_returns = returns.reshape(-1).detach().float()
 
         if self.is_distributed:
             stats = torch.stack(
@@ -268,18 +239,7 @@ class Learner:
             batch_mean_sq = flat_returns.pow(2).mean()
 
         batch_var = batch_mean_sq - batch_mean.pow(2)
-        self.reward_rms.update_from_moments(batch_mean, batch_var, count)
-
-    def _normalize_rewards(self, rewards_tensor, dones_tensor):
-        """Normalize raw rewards with running discounted-return variance."""
-        reward_returns = self._discounted_reward_returns(rewards_tensor, dones_tensor)
-        self._update_reward_rms(reward_returns)
-
-        reward_std = torch.sqrt(self.reward_rms.var + 1e-8)
-        n_rewards = rewards_tensor / reward_std
-
-        normalized_rewards = n_rewards.clamp(-self.reward_clip, self.reward_clip)
-        return normalized_rewards
+        self.value_norm.update_from_moments(batch_mean, batch_var, count)
 
     def _random_shift(self, obs):
         """Apply random shift augmentation to NHWC image observations."""
@@ -301,54 +261,15 @@ class Learner:
         shifted = patches[batch_idx, :, top, left]
         return shifted.permute(0, 2, 3, 1).contiguous()
 
-    def _build_spr_batch(self, states_tensor, actions_tensor, dones_tensor, mb_idx, T):
-        """Build valid multi-step SPR inputs and target latents."""
-        horizon = min(self.spr_horizon, T - 1)
-
-        b = mb_idx // T
-        t = mb_idx % T
-
-        valid = t + horizon < T
-        b, t = b[valid], t[valid]
-
-        action_offsets = torch.arange(horizon, device=self.device)
-        target_offsets = torch.arange(1, horizon + 1, device=self.device)
-
-        action_steps = t[:, None] + action_offsets[None, :]
-        target_steps = t[:, None] + target_offsets[None, :]
-
-        valid = ~dones_tensor[b[:, None], action_steps].bool().any(dim=1)
-        b, t = b[valid], t[valid]
-        action_steps, target_steps = action_steps[valid], target_steps[valid]
-
-        spr_states = states_tensor[b, t]
-        action_seq = actions_tensor[b[:, None], action_steps]
-        target_obs_seq = states_tensor[b[:, None], target_steps]
-
-        with torch.no_grad():
-            target_obs = target_obs_seq.reshape(-1, *target_obs_seq.shape[2:])
-            target_z = self.target_model.projection(target_obs)
-            target_z = target_z.view(target_obs_seq.shape[0], horizon, -1)
-
-        return spr_states, action_seq, target_z
-
-    def _spr_loss(self, pred_z, target_z):
-        """Compute normalized latent prediction loss."""
-        pred_z = F.normalize(pred_z, dim=-1)
-        target_z = F.normalize(target_z, dim=-1)
-        loss = F.mse_loss(pred_z, target_z, reduction="none").mean(dim=-1)
-        return loss.sum(dim=1).mean()
-
     def _drac_regularization(self, raw_output, aug_output):
         """Regularize augmented policy predictions toward raw predictions."""
-        raw_dist = Categorical(logits=raw_output["action_logits"].detach())
-        aug_dist = Categorical(logits=aug_output["action_logits"])
+        raw_dist = Categorical(logits=raw_output[0].detach())
+        aug_dist = Categorical(logits=aug_output[0])
         return kl_divergence(raw_dist, aug_dist).mean()
 
     def _evaluate_model_output(self, model_output, actions_tensor):
         """Evaluate action log probabilities and entropies from model output."""
-        action_logits = model_output["action_logits"]
-        state_values = model_output["state_value"]
+        action_logits, state_values = model_output
         dist = Categorical(logits=action_logits)
 
         dist_entropy = dist.entropy()
@@ -380,16 +301,18 @@ class Learner:
         with torch.no_grad():
             raw_reward_mean = rewards_tensor.mean().item()
             raw_reward_std = rewards_tensor.std(unbiased=False).item()
-            rewards_tensor = self._normalize_rewards(rewards_tensor, dones_tensor)
-            reward_running_std = torch.sqrt(self.reward_rms.var + 1e-8).item()
 
-        # Compute GAE
+        # Compute GAE in raw reward units using the previous value statistics.
         with torch.no_grad():
             flat_states = states_tensor.view(B * T, *states_tensor.shape[2:])
             flat_next_states = next_states_tensor.view(B * T, *states_tensor.shape[2:])
 
-            state_values = self.model.forward_critic(flat_states).squeeze(-1)
-            next_state_values = self.model.forward_critic(flat_next_states).squeeze(-1)
+            state_values = self.value_norm.denormalize(
+                self.model.forward_critic(flat_states).squeeze(-1)
+            )
+            next_state_values = self.value_norm.denormalize(
+                self.model.forward_critic(flat_next_states).squeeze(-1)
+            )
 
             state_values = state_values.view(B, T)
             next_state_values = next_state_values.view(B, T)
@@ -407,13 +330,20 @@ class Learner:
                 advantages[:, t] = gae
 
             returns = advantages + state_values
-            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+            self._update_value_norm(returns)
+            normalized_returns = self.value_norm.normalize(returns)
+            advantages = (advantages - advantages.mean()) / (
+                advantages.std(unbiased=False) + 1e-8
+            )
+            value_running_mean = self.value_norm.mean.item()
+            value_running_std = torch.sqrt(self.value_norm.var + 1e-8).item()
 
         flat_states = states_tensor.view(B * T, *states_tensor.shape[2:])
         flat_actions = actions_tensor.reshape(B * T)
         flat_old_log_probs = log_probs_tensor.reshape(B * T)
         flat_advantages = advantages.reshape(B * T)
         flat_returns = returns.reshape(B * T)
+        flat_normalized_returns = normalized_returns.reshape(B * T)
 
         N = B * T
         num_minibatches = min(self.num_minibatches, N)
@@ -424,7 +354,6 @@ class Learner:
         total_approx_kl = 0.0
         total_clip_frac = 0.0
         total_explained_var = 0.0
-        total_spr_loss = 0.0
         total_policy_reg = 0.0
         num_updates = 0
 
@@ -443,13 +372,10 @@ class Learner:
                 mb_old_log_probs = flat_old_log_probs[mb_idx]
                 mb_advantages = flat_advantages[mb_idx]
                 mb_returns = flat_returns[mb_idx]
+                mb_normalized_returns = flat_normalized_returns[mb_idx]
 
-                spr_states, spr_action_seq, spr_target_z = self._build_spr_batch(
-                    states_tensor, actions_tensor, dones_tensor, mb_idx, T
-                )
-
-                model_output = self.train_model(mb_states, spr_action_seq, spr_states)
-                aug_output = self.train_model(mb_aug_states, spr_action_seq, spr_states)
+                model_output = self.train_model(mb_states)
+                aug_output = self.train_model(mb_aug_states)
 
                 results = self._evaluate_model_output(model_output, mb_actions)
                 new_log_probs = results["log_probs"]
@@ -478,8 +404,8 @@ class Learner:
                 aug_actor_loss = -torch.min(surrogate_1, surrogate_2).mean()
                 actor_loss = 0.5 * raw_actor_loss + 0.5 * aug_actor_loss
 
-                raw_critic_loss = F.mse_loss(new_state_values, mb_returns)
-                aug_critic_loss = F.mse_loss(aug_state_values, mb_returns)
+                raw_critic_loss = F.mse_loss(new_state_values, mb_normalized_returns)
+                aug_critic_loss = F.mse_loss(aug_state_values, mb_normalized_returns)
                 critic_loss = 0.5 * raw_critic_loss + 0.5 * aug_critic_loss
 
                 entropy_loss = dist_entropy.mean()
@@ -487,24 +413,25 @@ class Learner:
                 loss = actor_loss + self.vf_coef * critic_loss
                 loss = loss - self.ent_coef * entropy_loss
 
-                spr_loss = self._spr_loss(model_output["spr_pred"], spr_target_z)
-                loss = loss + self.spr_coef * spr_loss
-
                 policy_reg = self._drac_regularization(model_output, aug_output)
                 loss = loss + self.drac_coef * policy_reg
 
                 approx_kl = (mb_old_log_probs - new_log_probs).mean()
                 clip_frac = (torch.abs(ratios - 1.0) > self.epsilon_clip).float().mean()
 
-                value_error_var = torch.var(mb_returns - new_state_values.detach())
-                return_var = torch.var(mb_returns)
+                raw_predicted_values = self.value_norm.denormalize(
+                    new_state_values.detach()
+                )
+                value_error_var = torch.var(
+                    mb_returns - raw_predicted_values, unbiased=False
+                )
+                return_var = torch.var(mb_returns, unbiased=False)
                 explained_var = 1 - value_error_var / (return_var + 1e-8)
 
                 self.optimizer.zero_grad()
                 loss.backward()
                 nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
                 self.optimizer.step()
-                self._update_network_parameters(self.model, self.target_model)
 
                 total_actor_loss += actor_loss.item()
                 total_critic_loss += critic_loss.item()
@@ -512,7 +439,6 @@ class Learner:
                 total_approx_kl += approx_kl.item()
                 total_clip_frac += clip_frac.item()
                 total_explained_var += explained_var.item()
-                total_spr_loss += spr_loss.item()
                 total_policy_reg += policy_reg.item()
                 num_updates += 1
 
@@ -523,7 +449,6 @@ class Learner:
             "log": {
                 "actor_loss": total_actor_loss / num_updates,
                 "critic_loss": total_critic_loss / num_updates,
-                "spr_loss": total_spr_loss / num_updates,
                 "entropy": total_entropy / num_updates,
                 "approx_kl": total_approx_kl / num_updates,
                 "clip_frac": total_clip_frac / num_updates,
@@ -531,7 +456,8 @@ class Learner:
                 "policy_reg": total_policy_reg / num_updates,
                 "raw_reward_mean": raw_reward_mean,
                 "raw_reward_std": raw_reward_std,
-                "reward_running_std": reward_running_std,
+                "value_running_mean": value_running_mean,
+                "value_running_std": value_running_std,
             },
             "memory": {"version": self.version},
             "version": self.get_version(),
@@ -547,9 +473,8 @@ class Learner:
 
         ckpt = {
             "model": self._state_dict(self.model),
-            "target_model": self._state_dict(self.target_model),
             "optimizer": self.optimizer.state_dict(),
-            "reward_rms": self.reward_rms.state_dict(),
+            "value_norm": self.value_norm.state_dict(),
             "version": self.version,
         }
         torch.save(ckpt, path)
@@ -564,13 +489,12 @@ class Learner:
 
         # Load model network
         self.model.load_state_dict(ckpt["model"])
-        self.target_model.load_state_dict(ckpt["target_model"])
 
         # Load optimizer state
         self.optimizer.load_state_dict(ckpt["optimizer"])
 
-        # Load reward normalization state
-        self.reward_rms.load_state_dict(ckpt["reward_rms"])
+        # Load value normalization state
+        self.value_norm.load_state_dict(ckpt["value_norm"])
 
         # Load model version
         self.version = ckpt["version"]

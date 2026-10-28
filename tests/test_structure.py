@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import yaml
 
-from framework.networks import ImpalaCNN, SPPOCNN
+from framework.networks import ImpalaCNN
 from omnirl.runtime.runner import Runner
 
 
@@ -15,7 +15,7 @@ EXPERIMENTS = ROOT / "experiments"
 ALGORITHMS = ["ppo", "sppo"]
 NETWORKS = {
     "framework.algorithms.ppo": ImpalaCNN,
-    "framework.algorithms.sppo": SPPOCNN,
+    "framework.algorithms.sppo": ImpalaCNN,
 }
 
 
