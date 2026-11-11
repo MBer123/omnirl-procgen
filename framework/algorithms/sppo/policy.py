@@ -3,9 +3,10 @@ import torch
 from torch.distributions import Categorical
 
 from framework.networks import ImpalaCNN
+from omnirl.algorithms.base import BasePolicy
 
 
-class Policy:
+class Policy(BasePolicy):
     """
     SPPO policy used for local inference.
 
@@ -57,20 +58,21 @@ class Policy:
             action = torch.argmax(action_logits, dim=-1)
             return int(action.item())
 
-    def sample_action(self, observation):
-        """Select a probabilistic action and its log probability."""
-        observation = np.asarray(observation, dtype=np.float32)
-        state = torch.as_tensor(observation, device=self.device).unsqueeze(0)
+    def sample_action(self, observations):
+        """Sample actions and log probabilities for a batch of observations."""
+        observations = np.asarray(observations, dtype=np.float32)
+        state = torch.as_tensor(observations, device=self.device)
 
         with torch.no_grad():
             action_logits = self.model.forward_actor(state)
             dist = Categorical(logits=action_logits)
             action = dist.sample()
-            log_prob = dist.log_prob(action).item()
-            action = int(action.item())
+            log_prob = dist.log_prob(action).cpu().numpy()
+            action = action.cpu().numpy()
             env_action = action
 
         return {
+            "action": action,
             "env_action": env_action,
-            "data": {"action": action, "log_prob": log_prob},
+            "extra_data": {"log_probs": log_prob},
         }

@@ -1,2 +1,2 @@
-omnirl-framework==0.1.2
+omnirl-framework==0.3.6
 procgen==0.10.7

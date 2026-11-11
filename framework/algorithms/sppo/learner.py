@@ -10,6 +10,7 @@ from torch.distributions import Categorical, kl_divergence
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from framework.networks import ImpalaCNN
+from omnirl.algorithms.base import BaseLearner
 from omnirl.utils.seed import set_global_seed
 
 
@@ -82,7 +83,7 @@ class ValueNormalizer:
 
 
 @ray.remote
-class Learner:
+class Learner(BaseLearner):
     """
     SPPO learner: PPO with actor and critic augmentation plus ValueNorm.
 

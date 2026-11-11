@@ -15,6 +15,7 @@ runner:
   eval_model: null
   num_learners: 4
   num_samplers: 100
+  collection_fragment_length: 256
   num_evaluators: 10
   max_updates: 3052
   save_interval: 3600

@@ -10,11 +10,12 @@ from torch.distributions import Categorical
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from framework.networks import ImpalaCNN
+from omnirl.algorithms.base import BaseLearner
 from omnirl.utils.seed import set_global_seed
 
 
 @ray.remote
-class Learner:
+class Learner(BaseLearner):
     """
     PPO learner agent.
 

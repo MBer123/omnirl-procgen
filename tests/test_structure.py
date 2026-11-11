@@ -8,6 +8,9 @@ import yaml
 
 from framework.networks import ImpalaCNN
 from omnirl.runtime.runner import Runner
+from omnirl.algorithms.base.learner import BaseLearner
+from omnirl.algorithms.base.policy import BasePolicy
+from omnirl.buffers.base.buffer import BaseBuffer
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +36,10 @@ class StructureTest(unittest.TestCase):
                     self.assertTrue(hasattr(module, component))
 
                 learner = module.Learner.__ray_metadata__.modified_class
+                self.assertTrue(issubclass(learner, BaseLearner))
+                self.assertTrue(issubclass(module.Policy, BasePolicy))
+                self.assertFalse(inspect.isabstract(learner))
+                self.assertFalse(inspect.isabstract(module.Policy))
                 for method in [
                     "get_weights",
                     "get_version",
@@ -44,7 +51,9 @@ class StructureTest(unittest.TestCase):
                     self.assertTrue(callable(getattr(learner, method)))
 
                 memory = module.Memory.__ray_metadata__.modified_class
-                for method in ["add", "get_batch", "on_learn", "ready", "stats"]:
+                self.assertTrue(issubclass(memory, BaseBuffer))
+                for method in ["add", "get_batch", "on_learn", "ready", "stats",
+                               "needs_backpressure", "can_sample", "supports_prefetch"]:
                     self.assertTrue(callable(getattr(memory, method)))
 
                 for method in ["set_weights", "choose_action", "sample_action"]:

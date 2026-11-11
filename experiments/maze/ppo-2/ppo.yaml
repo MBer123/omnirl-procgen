@@ -14,9 +14,7 @@ modules:
     max_grad_norm: 0.5
 
   memory:
-    unroll_length: 256
-    max_chunks: 256
-    store_log_probs: true
+    batch_size: 65536
     track_version: true
 
   network:

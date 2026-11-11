@@ -40,14 +40,12 @@ class SPPOSmokeTest(unittest.TestCase):
             rng = np.random.default_rng(0)
             states = rng.random((2, 3, *state_dim), dtype=np.float32)
             next_states = rng.random(states.shape, dtype=np.float32)
-            samples = [policy.sample_action(state) for state in states.reshape(-1, *state_dim)]
+            samples = policy.sample_action(states.reshape(-1, *state_dim))
             batch = {
                 "states": states,
                 "next_states": next_states,
-                "actions": np.array([sample["data"]["action"] for sample in samples]).reshape(2, 3),
-                "log_probs": np.array(
-                    [sample["data"]["log_prob"] for sample in samples], dtype=np.float32
-                ).reshape(2, 3),
+                "actions": samples["action"].reshape(2, 3),
+                "log_probs": samples["extra_data"]["log_probs"].reshape(2, 3),
                 "rewards": np.array([[0, 1, 2], [0, -1, 3]], dtype=np.float32),
                 "terminals": np.array([[0, 0, 1], [0, 0, 0]], dtype=np.float32),
                 "dones": np.array([[0, 0, 1], [0, 0, 1]], dtype=np.float32),
@@ -76,12 +74,12 @@ class SPPOSmokeTest(unittest.TestCase):
             with torch.no_grad():
                 expected_logits = learner.model.forward_actor(torch.from_numpy(observation).unsqueeze(0))
             self.assertEqual(policy.choose_action(observation), expected_logits.argmax(-1).item())
-            sample = policy.sample_action(observation)
-            self.assertEqual(sample["env_action"], sample["data"]["action"])
+            sample = policy.sample_action(observation[None])
+            np.testing.assert_array_equal(sample["env_action"], sample["action"])
             expected_log_prob = Categorical(logits=expected_logits).log_prob(
-                torch.tensor(sample["data"]["action"])
+                torch.tensor(sample["action"])
             ).item()
-            self.assertAlmostEqual(sample["data"]["log_prob"], expected_log_prob, places=5)
+            self.assertAlmostEqual(sample["extra_data"]["log_probs"][0], expected_log_prob, places=5)
 
             expected_weights = {
                 key: value.clone() for key, value in learner.get_weights().items()
